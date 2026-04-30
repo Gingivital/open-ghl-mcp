@@ -87,11 +87,16 @@ class StandardModeSetup:
             except Exception:
                 pass
 
-        # Check for custom mode (.env file)
         if self.env_file.exists():
             try:
                 with open(self.env_file, "r") as f:
                     content = f.read()
+
+                # PIT mode takes priority — detected by presence of GHL_PIT_TOKEN
+                if "GHL_PIT_TOKEN=" in content and "AUTH_MODE=pit" in content:
+                    return True, "PIT mode configured"
+
+                # Custom OAuth mode
                 if "GHL_CLIENT_ID=" in content and "GHL_CLIENT_SECRET=" in content:
                     return True, "Custom mode configured"
             except Exception:
@@ -168,24 +173,70 @@ class StandardModeSetup:
             json.dump(config_data, f, indent=2)
 
     def choose_auth_mode(self) -> str:
-        """Let user choose between Standard and Custom authentication mode"""
+        """Let user choose authentication mode"""
         print("\n🚀 Welcome to GoHighLevel MCP Server!\n")
-        print("Setting up in Custom Mode Authentication...")
-        print("\n🔧 Custom Mode Setup")
-        print("   • Use your own GoHighLevel Marketplace App")
-        print("   • Full control over OAuth settings\n")
+        print("Choose your authentication mode:\n")
+        print("  1. Custom OAuth  — your own GHL Marketplace App (multi-location)")
+        print(
+            "  2. PIT Token     — Private Integration Token, single-location, no OAuth\n"
+        )
 
-        # Automatically return custom mode for early release
-        return "custom"
+        while True:
+            choice = input("Enter 1 or 2 [1]: ").strip()
+            if choice in ("", "1"):
+                return "custom"
+            elif choice == "2":
+                return "pit"
+            else:
+                print("Please enter 1 or 2.")
 
-        # while True:
-        #     choice = input("Enter 1 for Standard or 2 for Custom [1]: ").strip()
-        #     if choice == "" or choice == "1":
-        #         return "standard"
-        #     elif choice == "2":
-        #         return "custom"
-        #     else:
-        #         print("Please enter 1 or 2.")
+    async def interactive_pit_setup(self) -> bool:
+        """Interactive setup for PIT (Private Integration Token) mode"""
+        print("\n🔑 PIT Mode Setup — Private Integration Token\n")
+        print("You'll need:")
+        print(
+            "  • A GHL sub-account with Settings → Integrations → Private Integrations"
+        )
+        print("  • Your token (starts with pit-...)")
+        print("  • Your location ID (from GHL Settings → Business Info)\n")
+        print(
+            "⚠️  Remember to whitelist this server's IP in GHL Private Integrations.\n"
+        )
+
+        try:
+            pit_token = input("Paste your PIT token (pit-...): ").strip()
+            if not pit_token or not pit_token.startswith("pit-"):
+                print("❌ Invalid token — must start with 'pit-'")
+                return False
+
+            location_id = input("Enter your GHL Location ID: ").strip()
+            if not location_id:
+                print("❌ Location ID cannot be empty.")
+                return False
+
+            env_content = (
+                "# GoHighLevel MCP Server — PIT Mode\n"
+                "AUTH_MODE=pit\n"
+                f"GHL_PIT_TOKEN={pit_token}\n"
+                f"GHL_LOCATION_ID={location_id}\n"
+            )
+
+            with open(self.env_file, "w") as f:
+                f.write(env_content)
+
+            print("\n✅ PIT configuration saved to .env!")
+            print(
+                "   If you see '403 Host not in allowlist', add this server's IP in "
+                "GHL → Settings → Integrations → Private Integrations → Allowed Hosts"
+            )
+            return True
+
+        except KeyboardInterrupt:
+            print("\n\n⏹️  Setup cancelled by user.")
+            return False
+        except Exception as e:
+            print(f"\n❌ Error during PIT setup: {e}")
+            return False
 
     async def interactive_custom_setup(self) -> bool:
         """Interactive setup for custom mode"""
@@ -396,17 +447,21 @@ OAUTH_SERVER_PORT=8080
         if not auth_valid:
             return False
 
-        # Check if we're in custom mode
         if self.env_file.exists():
-            # Custom mode - just check that .env file has required fields
             try:
                 with open(self.env_file, "r") as f:
                     content = f.read()
+
+                # PIT mode: token present is sufficient — no network call needed
+                if "GHL_PIT_TOKEN=" in content and "AUTH_MODE=pit" in content:
+                    return True
+
+                # Custom OAuth mode
                 if "GHL_CLIENT_ID=" in content and "GHL_CLIENT_SECRET=" in content:
                     return True
-                else:
-                    print("DEBUG: .env file missing required fields", file=sys.stderr)
-                    return False
+
+                print("DEBUG: .env file missing required fields", file=sys.stderr)
+                return False
             except Exception as e:
                 print(f"DEBUG: Error reading .env file: {e}", file=sys.stderr)
                 return False
@@ -422,7 +477,6 @@ OAUTH_SERVER_PORT=8080
                 print("DEBUG: No setup_token found in config", file=sys.stderr)
                 return False
 
-            # Validate token with API
             validation = await self.validate_token(token)
             if not validation.valid:
                 print(
@@ -467,8 +521,7 @@ OAUTH_SERVER_PORT=8080
         print("\n1. Open Claude Desktop settings")
         print("2. Navigate to 'Developer' → 'Edit Config'")
         print("3. Add the following to your mcpServers configuration:")
-        print(
-            f"""
+        print(f"""
 {{
   "mcpServers": {{
     "ghl-mcp-server": {{
@@ -484,7 +537,6 @@ OAUTH_SERVER_PORT=8080
     }}
   }}
 }}
-"""
-        )
+""")
         print("4. Save the configuration and restart Claude Desktop")
         print("\n✅ Your GoHighLevel MCP server is now configured!")
