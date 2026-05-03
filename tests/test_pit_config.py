@@ -2,6 +2,7 @@
 Smoke test: validates PIT auth config loads and token flows without network calls.
 Run with: uv run pytest tests/test_pit_config.py -v
 """
+
 import pytest
 
 
@@ -22,9 +23,9 @@ class TestPITConfig:
 
         svc = OAuthService()
         tok = svc.settings.ghl_pit_token
-        assert tok and tok.startswith("pit-"), (
-            f"GHL_PIT_TOKEN missing or malformed: {tok!r}"
-        )
+        assert tok and tok.startswith(
+            "pit-"
+        ), f"GHL_PIT_TOKEN missing or malformed: {tok!r}"
         print(f"\n  Token: {tok[:12]}...{tok[-4:]}")
 
     def test_location_id_set(self):
