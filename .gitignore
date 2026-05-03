@@ -1,6 +1,9 @@
 # Configuration
 config/
 
+# Claude Code local settings (personal overrides, not for team)
+.claude/settings.local.json
+
 # Environment variables
 .env
 .env.local
