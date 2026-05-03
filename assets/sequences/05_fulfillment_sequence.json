@@ -1,0 +1,66 @@
+{
+  "sequence_id": "fulfillment_v1",
+  "name": "Fulfillment Agent — Auto-Onboard + Snapshot Delivery",
+  "agent": "Fulfillment",
+  "color_scheme": "red_green",
+  "direction": "UP",
+  "trigger": "tag_applied:closed_won",
+  "channel": "SMS + Email",
+  "steps": [
+    {
+      "step": 1,
+      "delay_minutes": 0,
+      "channel": "Email",
+      "label": "Welcome + Access Drop",
+      "subject": "You're in — here's everything you need right now",
+      "body": "{{contact.first_name}},\n\nWelcome to {{location.name}}. You made the right call.\n\nHere's your onboarding package:\n\n✅ GHL Sub-Account Access: [LINK]\n✅ Snapshot Import Link: [SNAPSHOT LINK]\n✅ Quick-Start Video (8 min): [LOOM LINK]\n✅ Slack/Community Access: [LINK]\n✅ Your dedicated onboarding call: [CALENDAR LINK]\n\nThe system is pre-built. You import the snapshot, fill in your business details, and it runs.\n\nFirst milestone: [MILESTONE 1 — e.g. first lead captured] within 48 hours.\n\nLet's go.\n\n[FULFILLMENT TEAM NAME]\n{{location.name}}"
+    },
+    {
+      "step": 2,
+      "delay_minutes": 0,
+      "channel": "SMS",
+      "label": "Welcome SMS — Direct Line",
+      "message": "{{contact.first_name}} ✅ You're in. Check your email — everything's there. Need anything in the next 24 hours, text this number directly. I'm watching it. — [TEAM NAME]"
+    },
+    {
+      "step": 3,
+      "delay_minutes": 1440,
+      "channel": "SMS",
+      "label": "Day 1 Check-In",
+      "message": "{{contact.first_name}} — Day 1 check-in. Did you get the snapshot imported? Any blockers? Reply and I'll get you through it in minutes."
+    },
+    {
+      "step": 4,
+      "delay_minutes": 2880,
+      "channel": "Email",
+      "label": "Day 2 — First Win Prompt",
+      "subject": "Did you hit Milestone 1 yet?",
+      "body": "{{contact.first_name}},\n\nBy now you should have:\n☐ Snapshot imported\n☐ First workflow live\n☐ [MILESTONE 1] achieved\n\nIf yes — reply YES and I'll send you Milestone 2 instructions.\nIf stuck — reply STUCK and I'll get you unstuck in under 30 minutes.\n\nBinary. Fast. Forward.\n\n{{location.name}}"
+    },
+    {
+      "step": 5,
+      "delay_minutes": 7200,
+      "channel": "Email",
+      "label": "Day 5 — Early Win Capture",
+      "subject": "Tell me your first win — I want to share it",
+      "body": "{{contact.first_name}},\n\nIt's Day 5. By now the system has been running long enough to show results.\n\nWhat's your first win? Could be:\n- First lead captured automatically\n- First conversation handled by the AI\n- First booking closed without you\n- Time saved\n\nHit reply with one sentence. I use these to improve the system for everyone.\n\nAnd if nothing's moved yet — tell me. We fix it together today.\n\n{{location.name}}"
+    },
+    {
+      "step": 6,
+      "delay_minutes": 20160,
+      "channel": "Email",
+      "label": "Day 14 — Referral Ask",
+      "subject": "Who else needs this?",
+      "body": "{{contact.first_name}},\n\nTwo weeks in. The system is running.\n\nQuick ask: who's the one person in your network who needs exactly what you just got?\n\nSend me their name + best contact method. I'll handle the outreach — and you get [REFERRAL INCENTIVE] when they come on board.\n\nOne name. Takes 10 seconds.\n\nReply here.\n\n{{location.name}}"
+    }
+  ],
+  "on_milestone_1_hit": {
+    "tag": "milestone_1_complete",
+    "notify_optimizer": true
+  },
+  "on_referral_given": {
+    "action": "create_new_contact",
+    "tag": "referral_lead",
+    "trigger_sequence": "lead_scout_sms_v1"
+  }
+}

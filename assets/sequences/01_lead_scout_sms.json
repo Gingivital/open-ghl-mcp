@@ -1,0 +1,48 @@
+{
+  "sequence_id": "lead_scout_sms_v1",
+  "name": "Lead Scout — Inbound SMS Capture",
+  "agent": "Lead Scout",
+  "color_scheme": "blue_orange",
+  "direction": "UP",
+  "trigger": "new_lead_any_source",
+  "channel": "SMS",
+  "steps": [
+    {
+      "step": 1,
+      "delay_minutes": 0,
+      "label": "Instant Spike — First Contact",
+      "message": "Hey {{contact.first_name}} 👋 Just saw you came through — I'm the AI assistant for {{location.name}}. Quick question: are you looking to [OUTCOME] right now, or just exploring? Reply YES or NO and I'll route you to the right person instantly."
+    },
+    {
+      "step": 2,
+      "delay_minutes": 5,
+      "label": "No Reply Bump",
+      "condition": "no_reply",
+      "message": "{{contact.first_name}} — still here. Takes 10 seconds. YES = I connect you now. NO = I remove you from follow-up. Which is it?"
+    },
+    {
+      "step": 3,
+      "delay_minutes": 60,
+      "label": "Value Drop",
+      "condition": "no_reply",
+      "message": "{{contact.first_name}}, one thing most people don't know until it's too late: [CORE PAIN POINT]. We fix that. Want to see how? Reply SHOW ME."
+    },
+    {
+      "step": 4,
+      "delay_minutes": 1440,
+      "label": "Day 2 Re-entry",
+      "condition": "no_reply",
+      "message": "Still thinking about it? Here's what others in your position said after working with us: \"[TESTIMONIAL ONE LINER]\". Reply READY when you are."
+    },
+    {
+      "step": 5,
+      "delay_minutes": 4320,
+      "label": "Final Binary",
+      "condition": "no_reply",
+      "message": "Last message {{contact.first_name}}. Two paths: YES = 10-min call, I show you exactly how we get you [RESULT]. NO = I close your file and you stay where you are. Your call."
+    }
+  ],
+  "on_yes_reply": "transfer_to_qualifier",
+  "on_no_reply": "tag_unqualified_close_sequence",
+  "tags_applied": ["scout_touched", "awaiting_qualification"]
+}
