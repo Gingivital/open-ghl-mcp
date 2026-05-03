@@ -1,0 +1,53 @@
+{
+  "sequence_id": "lead_scout_email_v1",
+  "name": "Lead Scout — Inbound Email Capture",
+  "agent": "Lead Scout",
+  "color_scheme": "blue_orange",
+  "direction": "UP",
+  "trigger": "new_lead_any_source",
+  "channel": "Email",
+  "steps": [
+    {
+      "step": 1,
+      "delay_minutes": 0,
+      "label": "Instant Spike — Welcome + Binary Ask",
+      "subject": "You just unlocked something, {{contact.first_name}}",
+      "body": "Hey {{contact.first_name}},\n\nYou came in through [SOURCE] — which tells me you're not just browsing.\n\nHere's the straight path:\n\nYES → I get you on a 10-minute demo call. You see exactly how we deliver [RESULT]. No fluff.\nNO → No hard feelings. I close your file.\n\nWhich path are you on?\n\n→ [BOOK NOW BUTTON]\n\nBuilt for results,\n{{location.name}} AI Team"
+    },
+    {
+      "step": 2,
+      "delay_minutes": 1440,
+      "label": "Day 1 — The Unknown Unknown",
+      "condition": "no_open",
+      "subject": "Most people don't know this until it's too late",
+      "body": "{{contact.first_name}},\n\nThe #1 reason [TARGET CUSTOMER TYPE] don't hit [DESIRED RESULT]:\n\nThey don't know what they don't know.\n\nSpecifically: [CORE INSIGHT — 2 sentences max].\n\nWe built a system that handles this automatically. 5 agents, zero manual work, instant output.\n\nTake 10 minutes. See it live.\n\n→ [BOOK DEMO BUTTON]\n\n{{location.name}}"
+    },
+    {
+      "step": 3,
+      "delay_minutes": 2880,
+      "label": "Day 2 — Social Proof Binary",
+      "condition": "no_click",
+      "subject": "What [CLIENT NAME] said after week one",
+      "body": "{{contact.first_name}},\n\n\"[TESTIMONIAL — specific result + timeframe]\"\n— [Client First Name], [Title/Industry]\n\nThat's not an anomaly. That's the system working.\n\nYES path: 10 minutes with me, I show you the exact setup.\nNO path: Stay where you are.\n\nBoth are valid. Only one gets you to [RESULT].\n\n→ [BOOK NOW BUTTON]\n\n{{location.name}}"
+    },
+    {
+      "step": 4,
+      "delay_minutes": 5760,
+      "label": "Day 4 — Urgency Binary",
+      "condition": "no_click",
+      "subject": "Closing your file on [DATE + 48hrs]",
+      "body": "{{contact.first_name}},\n\nI have [X] spots left this week for onboarding new accounts.\n\nAfter [DATE] I'm pulling this conversation into the archive.\n\nIf you're serious about [RESULT] — now is the window.\n\n→ [CLAIM YOUR SPOT — BUTTON]\n\nIf not, no problem. Wishing you the best.\n\n{{location.name}}"
+    },
+    {
+      "step": 5,
+      "delay_minutes": 10080,
+      "label": "Day 7 — The Long Game Re-entry",
+      "condition": "no_click",
+      "subject": "Leaving this here for when you're ready",
+      "body": "{{contact.first_name}},\n\nNot everyone is ready at the same time. That's fine.\n\nWhen the moment comes that you need [RESULT] fast — this link is always open:\n\n→ [EVERGREEN BOOKING LINK]\n\nWe'll be here.\n\n{{location.name}}"
+    }
+  ],
+  "on_click": "transfer_to_qualifier",
+  "on_book": "transfer_to_closer",
+  "tags_applied": ["scout_email_sequence", "awaiting_qualification"]
+}

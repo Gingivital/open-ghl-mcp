@@ -41,6 +41,7 @@ from .conversations import ConversationsClient
 from .opportunities import OpportunitiesClient
 from .calendars import CalendarsClient
 from .forms import FormsClient
+from .workflows import WorkflowsClient
 
 
 class GoHighLevelClient:
@@ -59,6 +60,7 @@ class GoHighLevelClient:
         self._opportunities = OpportunitiesClient(oauth_service)
         self._calendars = CalendarsClient(oauth_service)
         self._forms = FormsClient(oauth_service)
+        self._workflows = WorkflowsClient(oauth_service)
 
     async def __aenter__(self):
         # Enter all specialized clients
@@ -67,6 +69,7 @@ class GoHighLevelClient:
         await self._opportunities.__aenter__()
         await self._calendars.__aenter__()
         await self._forms.__aenter__()
+        await self._workflows.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -76,6 +79,7 @@ class GoHighLevelClient:
         await self._opportunities.__aexit__(exc_type, exc_val, exc_tb)
         await self._calendars.__aexit__(exc_type, exc_val, exc_tb)
         await self._forms.__aexit__(exc_type, exc_val, exc_tb)
+        await self._workflows.__aexit__(exc_type, exc_val, exc_tb)
 
     # Location Methods (keeping these in main client for now)
 
@@ -338,3 +342,65 @@ class GoHighLevelClient:
     ) -> Dict[str, Any]:
         """Upload a file to a form's custom field"""
         return await self._forms.upload_form_file(file_upload)
+
+    # Workflow Methods - Delegate to WorkflowsClient
+
+    async def get_workflows(self, location_id: str) -> List[Dict[str, Any]]:
+        """List all published workflows for a location"""
+        return await self._workflows.get_workflows(location_id)
+
+    async def add_contact_to_workflow(
+        self,
+        contact_id: str,
+        workflow_id: str,
+        location_id: str,
+        event_start_time: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add a contact to a workflow, triggering its automation sequence"""
+        return await self._workflows.add_contact_to_workflow(
+            contact_id, workflow_id, location_id, event_start_time
+        )
+
+    async def remove_contact_from_workflow(
+        self, contact_id: str, workflow_id: str, location_id: str
+    ) -> bool:
+        """Remove a contact from a workflow"""
+        return await self._workflows.remove_contact_from_workflow(
+            contact_id, workflow_id, location_id
+        )
+
+    # Contact Notes Methods - Delegate to WorkflowsClient
+
+    async def get_contact_notes(
+        self, contact_id: str, location_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get all notes for a contact"""
+        return await self._workflows.get_contact_notes(contact_id, location_id)
+
+    async def create_contact_note(
+        self,
+        contact_id: str,
+        body: str,
+        location_id: str,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a note on a contact"""
+        return await self._workflows.create_contact_note(
+            contact_id, body, location_id, user_id
+        )
+
+    async def update_contact_note(
+        self, contact_id: str, note_id: str, body: str, location_id: str
+    ) -> Dict[str, Any]:
+        """Update a contact note"""
+        return await self._workflows.update_contact_note(
+            contact_id, note_id, body, location_id
+        )
+
+    async def delete_contact_note(
+        self, contact_id: str, note_id: str, location_id: str
+    ) -> bool:
+        """Delete a contact note"""
+        return await self._workflows.delete_contact_note(
+            contact_id, note_id, location_id
+        )

@@ -1,0 +1,74 @@
+{
+  "sequence_id": "optimizer_v1",
+  "name": "Optimizer Agent — Real-Time Analytics + Re-engagement",
+  "agent": "Optimizer",
+  "color_scheme": "black_white",
+  "direction": "UP",
+  "trigger": "recurring_daily_7am",
+  "channel": "Internal + SMS + Email",
+  "analytics_signals": {
+    "UP_metrics": [
+      "reply_rate > 30%",
+      "show_rate > 60%",
+      "close_rate > 20%",
+      "milestone_1_hit_within_48hrs > 70%",
+      "referral_rate > 10%"
+    ],
+    "DOWN_metrics": [
+      "reply_rate < 15%",
+      "no_show_rate > 40%",
+      "close_rate < 10%",
+      "churn_signal: no_login_7_days",
+      "unsubscribe_spike"
+    ],
+    "auto_optimize_triggers": {
+      "low_reply_rate": "rewrite_step_1_sms",
+      "high_no_show": "strengthen_reminder_sequence",
+      "low_close_rate": "add_objection_handling_step",
+      "churn_signal": "trigger_win_back_sequence"
+    }
+  },
+  "win_back_sequence": [
+    {
+      "step": 1,
+      "delay_days": 0,
+      "channel": "SMS",
+      "label": "Win-Back — Binary Re-entry",
+      "message": "{{contact.first_name}} — checking in. Haven't heard from you in a bit. Everything okay with the system? Reply YES it's running / NO I need help. Either way I want to know."
+    },
+    {
+      "step": 2,
+      "delay_days": 2,
+      "channel": "Email",
+      "label": "Win-Back — New Value Drop",
+      "condition": "no_reply",
+      "subject": "Something new just dropped — thought of you",
+      "body": "{{contact.first_name}},\n\nWe just released [NEW FEATURE / UPDATE / CASE STUDY].\n\nGiven what you're working on, this is directly relevant:\n[2-sentence description of the value]\n\n→ [LINK TO NEW THING]\n\nWorth 3 minutes of your time.\n\n{{location.name}}"
+    },
+    {
+      "step": 3,
+      "delay_days": 5,
+      "channel": "SMS",
+      "label": "Win-Back — Final Binary",
+      "condition": "no_reply",
+      "message": "{{contact.first_name}} — straight question: still want to make [RESULT] happen, or has something changed? YES = I'm back on it with you. NO = I'll stop reaching out. No judgment either way."
+    }
+  ],
+  "internal_alerts": [
+    {
+      "trigger": "no_show_rate > 40%",
+      "alert": "ALERT: No-show rate elevated. Review Step 3 (24hr reminder) messaging. Suggest: add personalization token or change CTA language.",
+      "notify": "team_slack_webhook"
+    },
+    {
+      "trigger": "close_rate < 10%",
+      "alert": "ALERT: Close rate below threshold. Review qualifier scoring criteria — may be passing unqualified leads to Closer.",
+      "notify": "team_slack_webhook"
+    },
+    {
+      "trigger": "referral_rate > 15%",
+      "alert": "WIN: Referral rate spiking. Double down on Day 14 referral ask. Consider adding Day 7 soft referral mention.",
+      "notify": "team_slack_webhook"
+    }
+  ]
+}

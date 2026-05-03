@@ -21,6 +21,18 @@ from .mcp.tools.conversations import _register_conversation_tools
 from .mcp.tools.opportunities import _register_opportunity_tools
 from .mcp.tools.calendars import _register_calendar_tools
 from .mcp.tools.forms import _register_form_tools
+from .mcp.tools.workflows import _register_workflow_tools
+
+
+def _is_pit_env(setup) -> bool:
+    """Return True if .env configures PIT mode."""
+    if not setup.env_file.exists():
+        return False
+    try:
+        content = setup.env_file.read_text()
+        return "AUTH_MODE=pit" in content and "GHL_PIT_TOKEN=" in content
+    except Exception:
+        return False
 
 
 async def startup_check_and_setup():
@@ -35,26 +47,30 @@ async def startup_check_and_setup():
             # First run - let user choose mode
             chosen_mode = setup.choose_auth_mode()
 
-            if chosen_mode == "custom":
+            if chosen_mode == "pit":
+                pit_success = await setup.interactive_pit_setup()
+                setup.mark_first_run_complete()
+                if pit_success:
+                    print("✅ PIT mode setup complete!")
+                    setup.show_claude_desktop_instructions()
+                    return "exit_after_setup"
+                else:
+                    return "exit_after_custom_instructions"
+
+            elif chosen_mode == "custom":
                 # Custom mode chosen - save this choice and run interactive setup
                 setup.save_custom_mode_choice()
                 custom_setup_success = await setup.interactive_custom_setup()
                 setup.mark_first_run_complete()
 
                 if custom_setup_success:
-                    # Credentials collected and .env created, clear the choice marker
                     setup.clear_custom_mode_choice()
-                    # Jump directly to Claude Desktop instructions (skip wizard)
-                    # Continue to show Claude Desktop instructions section
                 else:
-                    # User needs to create app first or cancelled
-                    # Keep the choice marker so they continue with custom mode on restart
                     return "exit_after_custom_instructions"
             else:
                 # Standard mode chosen - continue with setup
                 print("📋 Continuing with Standard Mode setup...\n")
 
-                # Standard mode setup wizard
                 setup_success = await setup.interactive_setup()
 
                 if not setup_success:
@@ -64,40 +80,48 @@ async def startup_check_and_setup():
                     )
                     print("   Please run the server again to retry setup.\n")
                     return False
-
-                # Standard setup completed successfully, continue to Claude instructions
         else:
             # Not first run - check existing auth status
             auth_valid, message = setup.check_auth_status()
 
             if auth_valid:
-                # Validate existing config with API
                 print(f"✅ {message}")
-                print("🔍 Validating configuration with Basic Machines...")
 
+                # PIT mode: no network validation needed — just trust the token
+                if _is_pit_env(setup):
+                    print("✅ PIT token detected — skipping remote validation.")
+                    setup.show_claude_desktop_instructions()
+                    return "exit_after_setup"
+
+                print("🔍 Validating configuration...")
                 config_valid = await setup.validate_existing_config()
                 if config_valid:
                     print("✅ Configuration validated successfully!")
-                    return True
+                    setup.show_claude_desktop_instructions()
+                    return "exit_after_setup"
                 else:
                     print("⚠️  Configuration validation failed.")
                     print("   Your setup token may have expired or become invalid.")
                     print("🚀 Re-running setup wizard...\n")
 
-            # Run setup wizard based on current mode
-            auth_valid, message = setup.check_auth_status()
-
-            # Check if we're in custom mode (has .env file OR user previously chose custom)
-            if setup.env_file.exists() or setup.was_custom_mode_chosen():
-                # Custom mode - re-run custom setup
+            # Re-run setup wizard based on current mode
+            if _is_pit_env(setup):
+                print("🔧 Re-running PIT Mode setup...\n")
+                pit_success = await setup.interactive_pit_setup()
+                if pit_success:
+                    print("✅ PIT mode setup completed successfully!")
+                    setup.show_claude_desktop_instructions()
+                    return "exit_after_setup"
+                else:
+                    print("❌ PIT setup was not completed successfully.\n")
+                    return False
+            elif setup.env_file.exists() or setup.was_custom_mode_chosen():
                 print("🔧 Re-running Custom Mode setup...\n")
                 custom_setup_success = await setup.interactive_custom_setup()
 
                 if custom_setup_success:
-                    # Custom setup completed successfully
                     setup.clear_custom_mode_choice()
                     print("✅ Custom mode setup completed successfully!")
-                    # Show Claude Desktop configuration instructions
                     setup.show_claude_desktop_instructions()
                     return "exit_after_setup"
                 else:
@@ -105,7 +129,6 @@ async def startup_check_and_setup():
                     print("   Please run the server again to retry setup.\n")
                     return False
             else:
-                # Standard mode - re-run standard setup
                 print("🔧 Re-running Standard Mode setup...\n")
                 setup_success = await setup.interactive_setup()
 
@@ -115,7 +138,6 @@ async def startup_check_and_setup():
                     return False
 
                 print("✅ Standard mode setup completed successfully!")
-                # Show Claude Desktop configuration instructions
                 setup.show_claude_desktop_instructions()
                 return "exit_after_setup"
 
@@ -153,6 +175,7 @@ def register_all_tools():
     _register_opportunity_tools(mcp, get_client, lambda: oauth_service)
     _register_calendar_tools(mcp, get_client)
     _register_form_tools(mcp, get_client)
+    _register_workflow_tools(mcp, get_client)
 
 
 # Resources will be imported separately in Phase 3
@@ -542,6 +565,9 @@ def main():
                         file=sys.stderr,
                     )
                     return False
+                # PIT mode: config is self-contained in .env, no further validation
+                if _is_pit_env(setup):
+                    return True
                 return True
 
         setup_result = asyncio.run(silent_check())

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "prod-ghl-mcp": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://services.leadconnectorhq.com/mcp/",
+        "--header",
+        "Authorization: Bearer pit-7e333fcb-6f5d-4524-95cc-8c837478817e",
+        "--header",
+        "locationId: 4YLdH06xJ9UgpToo9Vpp"
+      ]
+    }
+  }
+}

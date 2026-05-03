@@ -174,6 +174,75 @@ async def your_method(self, resource_id: str, location_id: str):
     )
 ```
 
+## Private Integration Token (PIT) Authentication
+
+### Overview
+GoHighLevel offers a third authentication mode beyond Standard and Custom OAuth: **Private Integration Tokens (PITs)**. These are static Bearer tokens generated directly in a GHL sub-account's Settings → Integrations → Private Integrations panel. They bypass OAuth entirely and are scoped to a single location.
+
+### PIT Token Format
+```
+pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+### How PIT Tokens Work
+- Tied to a **specific location** (sub-account), not an agency
+- No OAuth flow required — use directly as `Authorization: Bearer <pit-token>`
+- Scopes are configured at creation time in the GHL UI
+- Do **not** expire unless manually revoked
+- Require the requesting **host/IP to be whitelisted** in GHL → Settings → Private Integrations → Allowed Hosts
+
+### IP Allowlist Requirement
+PIT tokens enforce a host allowlist. If you get `403 Host not in allowlist`, add your server's IP/hostname in:
+`GHL Dashboard → Settings → Integrations → Private Integrations → [your integration] → Allowed Hosts`
+
+### Adding PIT Support to the MCP Server
+
+The current MCP server only supports Standard and Custom OAuth modes. To add PIT support:
+
+1. **New auth mode** in `src/services/oauth.py`:
+```python
+class AuthMode(str, Enum):
+    STANDARD = "standard"
+    CUSTOM = "custom"
+    PIT = "pit"          # Private Integration Token
+```
+
+2. **New setting** in `OAuthSettings`:
+```python
+pit_token: Optional[str] = Field(None, env="GHL_PIT_TOKEN")
+location_id: Optional[str] = Field(None, env="GHL_LOCATION_ID")
+```
+
+3. **Short-circuit token retrieval** in `OAuthService.get_valid_token()`:
+```python
+if self.settings.auth_mode == AuthMode.PIT:
+    return self.settings.pit_token  # Return PIT directly, no OAuth
+```
+
+4. **`.env` file for PIT mode**:
+```env
+AUTH_MODE=pit
+GHL_PIT_TOKEN=pit-2f42062c-8603-47c5-a9e9-729a92abb76d
+GHL_LOCATION_ID=your-location-id-here
+```
+
+### PIT vs OAuth Comparison
+| Feature | PIT Token | Custom OAuth |
+|---------|-----------|--------------|
+| Setup complexity | Minimal | Requires Marketplace App |
+| Expiration | None (until revoked) | 24-hour access tokens |
+| Scope | Single location | Agency + all locations |
+| IP restriction | Required | No |
+| Token refresh | Not needed | Automatic |
+| Best for | Single-location automations | Multi-location agency use |
+
+### Known PIT Limitations
+- Cannot access agency-level endpoints (company data, multi-location queries)
+- All API calls must include `locationId` matching the PIT's location
+- Location token exchange (`/oauth/locationToken`) is not needed — the PIT IS the location token
+
+---
+
 ## Message System Implementation Guide
 
 ### Critical: Message Type System
@@ -270,9 +339,9 @@ Standard opportunity object with required fields:
 - `update_opportunity`: Update existing opportunity
 - `delete_opportunity`: Delete opportunity
 - `update_opportunity_status`: Change opportunity status
-- `get_pipelines`: List location pipelines
-- `get_pipeline`: Get specific pipeline
-- `get_pipeline_stages`: Get pipeline stages
+- `get_pipelines`: List location pipelines (includes all stages in each pipeline object)
+
+**NOTE**: `get_pipeline` and `get_pipeline_stages` are NOT separate tools. The API has only one pipelines endpoint (`GET /opportunities/pipelines`) which returns all pipelines including their embedded stages array. There is no individual pipeline lookup endpoint.
 
 ### MCP Resources Available
 - `opportunities://{location_id}`: Browse all opportunities for location
@@ -604,3 +673,250 @@ result = await submit_form(
     custom_fields={"field_id": "value"}
 )
 ```
+
+## Locations System Implementation Guide
+
+### Overview
+The `locations.readonly` scope is already registered in `ALL_SCOPES`. Locations represent individual GHL sub-accounts (businesses) under an agency. Location data is essential for multi-location agency setups.
+
+### Core Location Endpoints
+- **GET /locations/{locationId}**: Get a specific location's details
+- **GET /locations/search**: Search locations under the agency
+- **PUT /locations/{locationId}**: Update location settings
+- **GET /locations/{locationId}/customFields**: Get custom field definitions for a location
+- **POST /locations/{locationId}/customFields**: Create a custom field
+- **PUT /locations/{locationId}/customFields/{id}**: Update a custom field
+- **DELETE /locations/{locationId}/customFields/{id}**: Delete a custom field
+- **GET /locations/{locationId}/tags**: Get all tags for a location
+- **POST /locations/{locationId}/tags**: Create a tag
+- **DELETE /locations/{locationId}/tags/{id}**: Delete a tag
+- **GET /locations/{locationId}/users**: Get users for a location
+
+### Location JSON Structure
+```json
+{
+  "id": "location-id",
+  "name": "Business Name",
+  "address": "123 Main St",
+  "city": "Austin",
+  "state": "TX",
+  "country": "US",
+  "postalCode": "78701",
+  "phone": "+15125551234",
+  "email": "business@example.com",
+  "website": "https://example.com",
+  "timezone": "America/Chicago",
+  "companyId": "agency-company-id"
+}
+```
+
+### Custom Fields Structure
+Custom fields are location-specific and can be attached to contacts or opportunities:
+```json
+{
+  "id": "custom-field-id",
+  "name": "Field Label",
+  "fieldKey": "contact.field_key",
+  "dataType": "TEXT",
+  "position": 0,
+  "picklistOptions": [],
+  "isAllContactsActive": true
+}
+```
+
+Custom field `dataType` values: `TEXT`, `LARGE_TEXT`, `NUMERICAL`, `PHONE`, `MONETORY`, `CHECKBOX`, `SINGLE_OPTIONS`, `MULTIPLE_OPTIONS`, `FLOAT`, `TIME`, `DATE`, `FILE_UPLOAD`
+
+### Adding Location Tools (Implementation Pattern)
+```python
+# src/api/locations.py
+async def get_location(self, location_id: str) -> Location:
+    response = await self._request(
+        "GET",
+        f"/locations/{location_id}",
+        location_id=location_id,
+    )
+    return Location(**response.json()["location"])
+
+async def get_custom_fields(self, location_id: str) -> CustomFieldList:
+    response = await self._request(
+        "GET",
+        f"/locations/{location_id}/customFields",
+        location_id=location_id,
+    )
+    return CustomFieldList(**response.json())
+```
+
+### OAuth Scopes Required
+- `locations.readonly` - Already in ALL_SCOPES, required for GET operations
+- `locations.write` - Add to ALL_SCOPES if implementing write operations
+
+---
+
+## Contact Notes & Tasks Implementation Guide
+
+### Overview
+Contacts in GHL support Notes and Tasks — these are core CRM features that are currently not implemented in this MCP server but are fully supported by the GHL API.
+
+### Notes Endpoints
+- **GET /contacts/{contactId}/notes**: List all notes for a contact
+- **POST /contacts/{contactId}/notes**: Create a note
+- **GET /contacts/{contactId}/notes/{id}**: Get a specific note
+- **PUT /contacts/{contactId}/notes/{id}**: Update a note
+- **DELETE /contacts/{contactId}/notes/{id}**: Delete a note
+
+### Note JSON Structure
+```json
+{
+  "id": "note-id",
+  "body": "Note content here",
+  "userId": "user-who-created-it",
+  "dateAdded": "2025-06-09T10:00:00Z",
+  "contactId": "contact-id"
+}
+```
+
+### Tasks Endpoints
+- **GET /contacts/{contactId}/tasks**: List all tasks for a contact
+- **POST /contacts/{contactId}/tasks**: Create a task
+- **GET /contacts/{contactId}/tasks/{id}**: Get a specific task
+- **PUT /contacts/{contactId}/tasks/{id}**: Update a task
+- **DELETE /contacts/{contactId}/tasks/{id}**: Delete a task
+- **PUT /contacts/{contactId}/tasks/{id}/completed**: Mark task complete
+
+### Task JSON Structure
+```json
+{
+  "id": "task-id",
+  "title": "Follow up call",
+  "body": "Call to discuss pricing",
+  "dueDate": "2025-06-15T10:00:00Z",
+  "completed": false,
+  "assignedTo": "user-id",
+  "contactId": "contact-id"
+}
+```
+
+### Implementation Pattern for Notes
+```python
+# src/api/contacts.py (add to existing)
+async def get_contact_notes(self, contact_id: str, location_id: str) -> NoteList:
+    response = await self._request(
+        "GET",
+        f"/contacts/{contact_id}/notes",
+        location_id=location_id,
+    )
+    return NoteList(**response.json())
+
+async def create_contact_note(
+    self, contact_id: str, body: str, location_id: str
+) -> Note:
+    response = await self._request(
+        "POST",
+        f"/contacts/{contact_id}/notes",
+        json={"body": body},
+        location_id=location_id,
+    )
+    return Note(**response.json()["note"])
+```
+
+### OAuth Scopes Required
+- `contacts.readonly` - Already in ALL_SCOPES, covers notes/tasks GET
+- `contacts.write` - Already in ALL_SCOPES, covers notes/tasks CREATE/UPDATE/DELETE
+
+---
+
+## Workflows & Automations Implementation Guide
+
+### Overview
+GoHighLevel Workflows are the automation engine. The API supports triggering workflows for contacts. This is NOT currently implemented in this MCP server.
+
+### Available Workflow Endpoints
+- **GET /workflows**: List all workflows for a location
+- **POST /contacts/{contactId}/workflow/{workflowId}**: Add contact to workflow
+- **DELETE /contacts/{contactId}/workflow/{workflowId}**: Remove contact from workflow
+
+### Workflow JSON Structure
+```json
+{
+  "id": "workflow-id",
+  "name": "New Lead Nurture Sequence",
+  "status": "published",
+  "version": 1,
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-06-09T00:00:00Z",
+  "locationId": "location-id"
+}
+```
+
+### Triggering a Workflow for a Contact
+```bash
+# Add contact to workflow
+curl -X POST \
+  "https://services.leadconnectorhq.com/contacts/{contactId}/workflow/{workflowId}" \
+  --header "Authorization: Bearer <token>" \
+  --header "Version: 2021-07-28" \
+  --header "Content-Type: application/json" \
+  --data '{"eventStartTime": "2025-06-09T10:00:00+00:00"}'
+```
+
+### Implementation Pattern
+```python
+# src/api/contacts.py (add to existing)
+async def add_to_workflow(
+    self, contact_id: str, workflow_id: str, location_id: str,
+    event_start_time: Optional[str] = None
+) -> dict:
+    payload = {}
+    if event_start_time:
+        payload["eventStartTime"] = event_start_time
+    response = await self._request(
+        "POST",
+        f"/contacts/{contact_id}/workflow/{workflow_id}",
+        json=payload,
+        location_id=location_id,
+    )
+    return response.json()
+
+async def get_workflows(self, location_id: str) -> list:
+    response = await self._request(
+        "GET",
+        "/workflows",
+        params={"locationId": location_id},
+        location_id=location_id,
+    )
+    return response.json().get("workflows", [])
+```
+
+### OAuth Scopes Required
+Add to `ALL_SCOPES` in `src/services/oauth.py` before implementing:
+- `workflows.readonly` - For listing workflows
+- `workflows.write` - For adding/removing contacts from workflows
+
+---
+
+## Known API Discrepancies & Corrections
+
+This section documents differences between what the API docs say and what actually works (validated by curl testing).
+
+### Pipeline Tools
+- **Documented (incorrectly)**: `get_pipeline`, `get_pipeline_stages` as separate tools
+- **Actual implementation**: Only `get_pipelines` exists — one call returns all pipelines with stages embedded
+- **Correct endpoint**: `GET /opportunities/pipelines?locationId={id}` (not `/pipelines`)
+
+### Message Status Updates
+- **Documented**: `update_message_status` tool available
+- **Actual**: Returns error — only supported for custom conversation providers (Marketplace Apps), not standard messages
+
+### Calendar Events Endpoint
+- **API docs suggest**: `GET /calendars/events/appointments` for listing
+- **Actual working endpoint**: `GET /contacts/{contactId}/appointments` for getting appointments per contact
+- **For events list**: `GET /calendars/events` with `startTime`/`endTime` params (not `startDate`/`endDate`)
+
+### Forms Endpoints Not Supported
+- `GET /forms/{id}` → 401 "This route is not yet supported by the IAM Service"
+- `GET /forms/{id}/submissions` → 404 Not Found
+- `POST /forms/submit` → 401 Unauthorized
+
+### Conversations Endpoint Path
+- **Wrong**: `GET /conversations`
+- **Correct**: `GET /conversations/search`

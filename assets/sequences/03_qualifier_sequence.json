@@ -1,0 +1,73 @@
+{
+  "sequence_id": "qualifier_v1",
+  "name": "Qualifier Agent — Binary Score + Instant Handoff",
+  "agent": "Qualifier",
+  "color_scheme": "red_green",
+  "direction": "UP",
+  "trigger": "tag_applied:awaiting_qualification",
+  "channel": "SMS + Email",
+  "scoring_criteria": {
+    "UP_signals": [
+      "Replied YES or READY",
+      "Clicked CTA link",
+      "Has budget signal in custom fields",
+      "Booked or asked to book",
+      "Mentioned specific pain point",
+      "Opened 2+ emails"
+    ],
+    "DOWN_signals": [
+      "No reply after 5 steps",
+      "Replied STOP or NO",
+      "Unsubscribed",
+      "Invalid phone/email",
+      "Out-of-market indicator"
+    ],
+    "score_threshold_qualified": 3,
+    "score_threshold_disqualified": 1
+  },
+  "steps": [
+    {
+      "step": 1,
+      "delay_minutes": 0,
+      "channel": "SMS",
+      "label": "Qualifier Entry — Binary Ask",
+      "message": "{{contact.first_name}}, quick qualifier before I connect you with the team. 3 fast ones:\n\n1. Are you the decision maker? YES/NO\n2. Are you looking to start in the next 30 days? YES/NO\n3. Is [BUDGET QUALIFIER e.g. $500/mo] within range? YES/NO\n\nText 3 YESes and I route you straight to the closer. 🎯"
+    },
+    {
+      "step": 2,
+      "delay_minutes": 10,
+      "channel": "Email",
+      "label": "Qualifier Email — Deeper Intel",
+      "condition": "no_sms_reply",
+      "subject": "One minute — tell me where you stand",
+      "body": "{{contact.first_name}},\n\nBefore we spend each other's time, I want to make sure this is the right fit.\n\nAnswer these 3 questions and I'll know instantly:\n\n1. What's your biggest bottleneck right now with [AREA]?\n2. Have you tried solving it before? What happened?\n3. If we could fix it in 30 days, what would that be worth to you?\n\nHit reply — I read every one.\n\n{{location.name}}"
+    },
+    {
+      "step": 3,
+      "delay_minutes": 60,
+      "channel": "SMS",
+      "label": "Score Trigger — UP Path",
+      "condition": "score_qualified",
+      "message": "✅ {{contact.first_name}} — you're qualified. I'm connecting you with [CLOSER NAME] right now. They'll send a calendar link in the next 2 minutes. Watch for it."
+    },
+    {
+      "step": 4,
+      "delay_minutes": 60,
+      "channel": "SMS",
+      "label": "Score Trigger — DOWN Path",
+      "condition": "score_disqualified",
+      "message": "{{contact.first_name}}, based on your answers, we're not the right fit right now — and I'd rather tell you straight than waste your time. I'll keep your info and reach out when the timing makes more sense. 🙏"
+    }
+  ],
+  "on_qualified": {
+    "action": "transfer_to_closer",
+    "tag": "qualified_hot",
+    "pipeline_stage": "Qualified Lead",
+    "notify_team": true
+  },
+  "on_disqualified": {
+    "action": "add_to_nurture_sequence",
+    "tag": "disqualified_nurture",
+    "pipeline_stage": "Not Ready"
+  }
+}

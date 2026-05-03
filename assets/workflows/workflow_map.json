@@ -1,0 +1,116 @@
+{
+  "system": "Multi Ultimate GHL Agent System",
+  "version": "1.0",
+  "color_map": {
+    "Lead Scout": "blue_orange",
+    "Qualifier": "red_green",
+    "Closer": "blue_orange",
+    "Fulfillment": "red_green",
+    "Optimizer": "black_white",
+    "Master": "black_white"
+  },
+  "straight_path": [
+    "Lead Scout",
+    "Qualifier",
+    "Closer",
+    "Fulfillment",
+    "Optimizer"
+  ],
+  "workflows": [
+    {
+      "id": "wf_01_scout_inbound",
+      "name": "Scout — New Lead Entry",
+      "trigger": {"type": "contact_created", "source": "any"},
+      "actions": [
+        {"type": "apply_tag", "value": "new_lead"},
+        {"type": "add_to_sequence", "sequence_id": "lead_scout_sms_v1"},
+        {"type": "update_pipeline_stage", "stage": "New Lead"}
+      ]
+    },
+    {
+      "id": "wf_02_qualifier_entry",
+      "name": "Qualifier — Score Lead",
+      "trigger": {"type": "tag_applied", "tag": "awaiting_qualification"},
+      "actions": [
+        {"type": "remove_from_sequence", "sequence_id": "lead_scout_sms_v1"},
+        {"type": "add_to_sequence", "sequence_id": "qualifier_v1"},
+        {"type": "update_pipeline_stage", "stage": "In Qualification"}
+      ]
+    },
+    {
+      "id": "wf_03_closer_entry",
+      "name": "Closer — Hot Handoff",
+      "trigger": {"type": "tag_applied", "tag": "qualified_hot"},
+      "actions": [
+        {"type": "remove_from_sequence", "sequence_id": "qualifier_v1"},
+        {"type": "add_to_sequence", "sequence_id": "closer_v1"},
+        {"type": "update_pipeline_stage", "stage": "In Closing"},
+        {"type": "notify_team", "message": "🔥 HOT lead transferred to Closer: {{contact.first_name}}"}
+      ]
+    },
+    {
+      "id": "wf_04_fulfillment_kickoff",
+      "name": "Fulfillment — Closed Won Kickoff",
+      "trigger": {"type": "tag_applied", "tag": "closed_won"},
+      "actions": [
+        {"type": "remove_from_sequence", "sequence_id": "closer_v1"},
+        {"type": "add_to_sequence", "sequence_id": "fulfillment_v1"},
+        {"type": "update_pipeline_stage", "stage": "Onboarding"},
+        {"type": "notify_team", "message": "✅ NEW CLIENT: {{contact.first_name}} — Fulfillment started"},
+        {"type": "create_opportunity", "name": "{{contact.first_name}} — Onboarding", "stage": "Onboarding"}
+      ]
+    },
+    {
+      "id": "wf_05_optimizer_winback",
+      "name": "Optimizer — Win-Back Trigger",
+      "trigger": {"type": "no_activity_days", "days": 7},
+      "actions": [
+        {"type": "add_to_sequence", "sequence_id": "optimizer_v1"},
+        {"type": "apply_tag", "value": "win_back_active"},
+        {"type": "notify_team", "message": "⚠️ Win-back triggered for: {{contact.first_name}}"}
+      ]
+    },
+    {
+      "id": "wf_06_referral_entry",
+      "name": "Referral — New Contact from Client",
+      "trigger": {"type": "tag_applied", "tag": "referral_lead"},
+      "actions": [
+        {"type": "apply_tag", "value": "new_lead"},
+        {"type": "apply_tag", "value": "referral_source"},
+        {"type": "add_to_sequence", "sequence_id": "lead_scout_sms_v1"},
+        {"type": "update_pipeline_stage", "stage": "New Lead — Referral"}
+      ]
+    }
+  ],
+  "pipeline_stages": [
+    "New Lead",
+    "In Qualification",
+    "Qualified — Hot",
+    "Qualified — Warm",
+    "In Closing",
+    "Booked",
+    "Closed Won",
+    "Onboarding",
+    "Active Client",
+    "Not Ready",
+    "Closed Lost",
+    "Long Term Nurture"
+  ],
+  "tags_master_list": [
+    "new_lead",
+    "scout_touched",
+    "awaiting_qualification",
+    "qualified_hot",
+    "qualified_warm",
+    "disqualified_cold",
+    "closed_won",
+    "closed_lost_nurture",
+    "onboarding_active",
+    "milestone_1_complete",
+    "referral_lead",
+    "referral_source",
+    "win_back_active",
+    "long_term_archive",
+    "closer_exhausted"
+  ]
+}

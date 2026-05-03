@@ -1,0 +1,79 @@
+{
+  "sequence_id": "closer_v1",
+  "name": "Closer Agent — Voice + Booking + No-Show Recovery",
+  "agent": "Closer",
+  "color_scheme": "blue_orange",
+  "direction": "UP",
+  "trigger": "tag_applied:qualified_hot",
+  "channel": "SMS + Email + Voice",
+  "steps": [
+    {
+      "step": 1,
+      "delay_minutes": 0,
+      "channel": "SMS",
+      "label": "Hot Handoff — Book Instantly",
+      "message": "{{contact.first_name}} — [CLOSER NAME] here from {{location.name}}. You just got flagged as priority. I have [X] spots open this week.\n\nPick your time in the next 60 seconds:\n→ [CALENDAR LINK]\n\nThis call closes your questions and shows you the exact system live. 10 minutes max."
+    },
+    {
+      "step": 2,
+      "delay_minutes": 15,
+      "channel": "Email",
+      "label": "Booking Confirmation + Pre-Frame",
+      "condition": "appointment_booked",
+      "subject": "You're on the calendar — here's what to expect",
+      "body": "{{contact.first_name}},\n\nYou're locked in for [APPOINTMENT DATE/TIME].\n\nBefore we talk, do one thing: write down your #1 problem with [AREA]. We're going to solve it on the call or tell you exactly why we can't.\n\nNo pitch. No pressure. Binary outcome — either this works for you or it doesn't.\n\nSee you [DATE].\n\n[CLOSER NAME]\n{{location.name}}\n\nAdd to calendar: [CALENDAR LINK]\nReschedule: [RESCHEDULE LINK]"
+    },
+    {
+      "step": 3,
+      "delay_minutes": -1440,
+      "channel": "SMS",
+      "label": "24hr Reminder",
+      "condition": "appointment_booked",
+      "message": "Reminder {{contact.first_name}}: We're on tomorrow at [TIME]. I'll have the full system demo ready for you. Reply CONFIRM or RESCHEDULE."
+    },
+    {
+      "step": 4,
+      "delay_minutes": -60,
+      "channel": "SMS",
+      "label": "1hr Pre-Call Spike",
+      "condition": "appointment_confirmed",
+      "message": "1 hour out {{contact.first_name}}. Zoom link: [ZOOM LINK]\n\nOne last thing — think about: what would [RESULT] mean for your business in 90 days? Come ready with that number. 🎯"
+    },
+    {
+      "step": 5,
+      "delay_minutes": 15,
+      "channel": "SMS",
+      "label": "No-Show Recovery — Instant",
+      "condition": "no_show",
+      "message": "{{contact.first_name}} — missed you just now. No worries, things happen. I have one more opening [DAY] at [TIME]. Want it? Reply YES and I'll hold it for you."
+    },
+    {
+      "step": 6,
+      "delay_minutes": 60,
+      "channel": "Email",
+      "label": "No-Show Recovery — Value Drop",
+      "condition": "no_show",
+      "subject": "Recorded a quick demo for you instead",
+      "body": "{{contact.first_name}},\n\nMissed you on the call — so I recorded a 3-minute demo of the exact system we would have walked through.\n\n→ [LOOM/VIDEO LINK]\n\nWatch it when you have 3 minutes, then reply with your biggest question. I'll answer it same day.\n\nIf after watching you want to get on a real call — here's the link:\n→ [CALENDAR LINK]\n\n[CLOSER NAME]"
+    },
+    {
+      "step": 7,
+      "delay_minutes": 2880,
+      "channel": "SMS",
+      "label": "No-Show Final Binary",
+      "condition": "no_show_unreached",
+      "message": "{{contact.first_name}} — last attempt. YES = I send you the calendar link right now and we lock it in. NO = I close your file with respect. Which is it?"
+    }
+  ],
+  "on_closed_won": {
+    "action": "transfer_to_fulfillment",
+    "tag": "closed_won",
+    "pipeline_stage": "Closed Won",
+    "trigger_workflow": "fulfillment_kickoff"
+  },
+  "on_closed_lost": {
+    "action": "add_to_long_nurture",
+    "tag": "closed_lost_nurture",
+    "pipeline_stage": "Closed Lost"
+  }
+}

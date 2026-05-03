@@ -6,10 +6,13 @@ A Model Context Protocol (MCP) server that provides seamless integration with th
 ## Features
 
 - 🔐 **OAuth 2.0 Authentication**: Full OAuth flow with automatic token management by default
+- 🔑 **Private Integration Token (PIT) Support**: Use GHL's static API tokens for single-location setups
 - 🏢 **Multi-location Support**: Works with agency accounts to manage multiple sub-accounts
 - 👥 **Contact Management**: Complete CRUD operations for contacts
-- 💬 **Conversations**: Search conversations, view messages, and manage messaging
-- 📝 **Forms & Submissions**: List forms, view submissions, test form submissions like a website visitor
+- 💬 **Conversations**: Search conversations, view messages, send SMS and Email
+- 🎯 **Opportunities**: Full sales pipeline management with stage tracking
+- 📅 **Calendars & Appointments**: Calendar management, appointment booking, free slot lookup
+- 📝 **Forms & Submissions**: List forms, view submissions, upload files to custom fields
 - 🏷️ **Tag Management**: Add and remove tags from contacts
 - 🔄 **Automatic Token Refresh**: Handles token expiration seamlessly
 - 🛠️ **MCP Tools & Resources**: Both tools and resources for flexible integration
@@ -21,6 +24,7 @@ A Model Context Protocol (MCP) server that provides seamless integration with th
 - One of the following:
   - **Standard Mode Configuration**: Access via our hosted GoHighLevel app (coming soon)
   - **Custom Mode Configuration**: Your own GoHighLevel Marketplace App credentials
+  - **PIT Mode Configuration**: A Private Integration Token from GHL Settings
 
 ## Getting Started - Installation
 
@@ -43,11 +47,27 @@ python -m src.main
 
 ## 1. Configuration
 
+### Option A — Custom OAuth Mode
 Use your own GoHighLevel Marketplace App:
 
 1. Create your own GoHighLevel Marketplace App
 2. Set the redirect URL to: `http://localhost:8080/oauth/callback`
 3. Set the permissions you want for the tools and resources below
+
+### Option B — Private Integration Token (PIT) Mode
+For single-location setups without OAuth overhead:
+
+1. In GHL, go to **Settings → Integrations → Private Integrations**
+2. Create a new integration and note your token (`pit-...`)
+3. Add your server's IP to the **Allowed Hosts** list
+4. Create a `.env` file:
+```env
+AUTH_MODE=pit
+GHL_PIT_TOKEN=pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+GHL_LOCATION_ID=your-location-id
+```
+
+> **Note**: PIT tokens are tied to a single location, don't expire, and require IP allowlisting. They are ideal for server-side automations where you control the network environment.
 
 
 ## 2. Usage
@@ -93,7 +113,7 @@ This MCP server provides comprehensive access to GoHighLevel API v2 through both
 | `get_conversation` | `GET /conversations/{id}` | Get a single conversation |
 | `get_messages` | `GET /conversations/{id}/messages` | Get messages from a conversation |
 | `send_message` | `POST /conversations/{id}/messages` | Send messages (SMS ✅, Email ✅, WhatsApp, IG, FB, Custom, Live_Chat) |
-| `update_message_status` | `PUT /conversations/messages/{messageId}/status` | Update message delivery status |
+| `update_message_status` | `PUT /conversations/messages/{messageId}/status` | ⚠️ Custom providers only — not available for standard messages |
 
 #### 🎯 Opportunities & Sales Pipeline
 | Tool | GoHighLevel Endpoint | Description |
@@ -104,14 +124,20 @@ This MCP server provides comprehensive access to GoHighLevel API v2 through both
 | `update_opportunity` | `PUT /opportunities/{id}` | Update existing opportunity |
 | `delete_opportunity` | `DELETE /opportunities/{id}` | Delete opportunity |
 | `update_opportunity_status` | `PUT /opportunities/{id}/status` | Update opportunity status |
-| `get_pipelines` | `GET /opportunities/pipelines` | List all pipelines |
+| `get_pipelines` | `GET /opportunities/pipelines` | List all pipelines (stages embedded in each pipeline) |
+
+> **Note**: There are no individual pipeline or stage lookup endpoints — `get_pipelines` returns all pipelines with their stages included.
 
 #### 📅 Calendar & Appointments
 | Tool | GoHighLevel Endpoint | Description |
 |------|---------------------|-------------|
 | `get_calendars` | `GET /calendars/?locationId={id}` | List all calendars for location |
 | `get_calendar` | `GET /calendars/{id}` | Get calendar details (54+ fields) |
-| `get_appointments` | `GET /contacts/{contactId}/appointments` | Get appointments for contact |
+| `get_appointments` | `GET /contacts/{contactId}/appointments` | Get appointments for a contact |
+| `get_appointment` | `GET /calendars/events/appointments/{id}` | Get a specific appointment |
+| `create_appointment` | `POST /calendars/events/appointments` | Create a new appointment |
+| `update_appointment` | `PUT /calendars/events/appointments/{id}` | Update an existing appointment |
+| `delete_appointment` | `DELETE /calendars/events/{id}` | Delete an appointment |
 | `get_free_slots` | `GET /calendars/{id}/free-slots` | Get available time slots |
 
 #### 📝 Forms & Submissions
@@ -180,6 +206,29 @@ opportunities://YOUR_LOCATION_ID
 # View conversation details
 conversation://YOUR_LOCATION_ID/YOUR_CONVERSATION_ID
 ```
+
+## Authentication Modes
+
+| Mode | Setup | Token Type | Scope | Best For |
+|------|-------|------------|-------|----------|
+| **Standard** | Via Basic Machines hosted app | OAuth 2.0 | Agency + all locations | Hosted/managed deployments |
+| **Custom** | Your own Marketplace App | OAuth 2.0 | Agency + all locations | Multi-location agency control |
+| **PIT** | GHL Settings → Private Integrations | Static Bearer token | Single location | Server automations, single-location |
+
+## Roadmap — Not Yet Implemented
+
+These GHL API areas are not yet in this MCP server but are planned:
+
+| Feature | GHL Endpoints | OAuth Scopes Needed |
+|---------|--------------|---------------------|
+| **Location Details** | `GET /locations/{id}` | `locations.readonly` (already in scopes) |
+| **Custom Fields** | `GET/POST/PUT/DELETE /locations/{id}/customFields` | `locations.readonly/write` |
+| **Contact Notes** | `GET/POST/PUT/DELETE /contacts/{id}/notes` | `contacts.readonly/write` (already in scopes) |
+| **Contact Tasks** | `GET/POST/PUT/DELETE /contacts/{id}/tasks` | `contacts.readonly/write` (already in scopes) |
+| **Workflows** | `GET /workflows`, `POST /contacts/{id}/workflow/{wfId}` | `workflows.readonly/write` |
+| **Users** | `GET /users`, `GET /users/{id}` | `users.readonly` |
+| **Surveys** | `GET /surveys`, `GET /surveys/submissions` | `surveys.readonly` |
+| **Products** | `GET /products`, `POST /products` | `products.readonly/write` |
 
 ## Development
 

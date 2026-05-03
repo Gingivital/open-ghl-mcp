@@ -19,6 +19,7 @@ from ..models.auth import TokenResponse, StoredToken
 class AuthMode(str, Enum):
     STANDARD = "standard"
     CUSTOM = "custom"
+    PIT = "pit"
 
 
 class OAuthSettings(BaseSettings):
@@ -40,6 +41,10 @@ class OAuthSettings(BaseSettings):
     oauth_redirect_uri: str = "http://localhost:8080/oauth/callback"
     oauth_server_port: int = 8080
     token_storage_path: str = "./config/tokens.json"
+
+    # PIT mode settings — env vars: GHL_PIT_TOKEN and GHL_LOCATION_ID
+    ghl_pit_token: Optional[str] = Field(None)
+    ghl_location_id: Optional[str] = Field(None)
 
     @classmethod
     def get_env_file_path(cls):
@@ -73,6 +78,12 @@ class OAuthSettings(BaseSettings):
             if not self.ghl_client_id or not self.ghl_client_secret:
                 raise ValueError(
                     "GHL_CLIENT_ID and GHL_CLIENT_SECRET are required for custom mode"
+                )
+        elif self.auth_mode == AuthMode.PIT:
+            if not self.ghl_pit_token:
+                raise ValueError(
+                    "GHL_PIT_TOKEN is required for PIT mode. "
+                    "Add GHL_PIT_TOKEN=pit-... to your .env file."
                 )
 
 
@@ -270,24 +281,24 @@ class OAuthService:
         self._location_tokens: Dict[str, StoredToken] = {}  # Cache for location tokens
         self._standard_auth: Optional[StandardAuthService] = None  # Initialize as None
 
-        # Debug environment and settings
         from pathlib import Path
 
-        # Use absolute path based on module location instead of cwd
-        # Go up from src/services/oauth.py to project root
         project_root = Path(__file__).parent.parent.parent
         env_file = project_root / ".env"
         tokens_file = project_root / "config" / "tokens.json"
 
-        # Force custom mode if we have custom mode files, regardless of env detection
-        # The presence of tokens.json is a definitive indicator of custom mode
-        if tokens_file.exists() and self.settings.auth_mode == AuthMode.STANDARD:
+        # PIT mode: detected via AUTH_MODE=pit in .env — don't override it.
+        if self.settings.auth_mode == AuthMode.PIT:
+            pass  # PIT mode is correct, leave it alone
+
+        # Force custom mode if tokens.json exists (definitive indicator)
+        elif tokens_file.exists() and self.settings.auth_mode == AuthMode.STANDARD:
             print(
                 "DEBUG: FORCING custom mode - tokens.json exists but auth_mode was standard"
             )
             self.settings.auth_mode = AuthMode.CUSTOM
 
-        # Also force custom mode if we have both .env and credentials
+        # Force custom mode if .env has OAuth credentials
         elif (
             env_file.exists()
             and self.settings.ghl_client_id
@@ -299,7 +310,7 @@ class OAuthService:
             )
             self.settings.auth_mode = AuthMode.CUSTOM
 
-        # Initialize standard auth service if in standard mode
+        # Initialize standard auth service only in standard mode
         if self.settings.auth_mode == AuthMode.STANDARD:
             self._standard_auth = StandardAuthService(self.settings)
         else:
@@ -316,8 +327,8 @@ class OAuthService:
             await self._standard_auth.__aexit__(exc_type, exc_val, exc_tb)
 
     async def load_token(self) -> Optional[StoredToken]:
-        """Load token from storage (self-hosted mode only)"""
-        if self.settings.auth_mode == AuthMode.STANDARD:
+        """Load token from storage (custom mode only)"""
+        if self.settings.auth_mode in (AuthMode.STANDARD, AuthMode.PIT):
             return None
 
         token_path = Path(self.settings.token_storage_path)
@@ -333,8 +344,8 @@ class OAuthService:
             return None
 
     async def save_token(self, token: StoredToken) -> None:
-        """Save token to storage (self-hosted mode only)"""
-        if self.settings.auth_mode == AuthMode.STANDARD:
+        """Save token to storage (custom mode only)"""
+        if self.settings.auth_mode in (AuthMode.STANDARD, AuthMode.PIT):
             return
 
         token_path = Path(self.settings.token_storage_path)
@@ -345,16 +356,23 @@ class OAuthService:
 
     async def get_company_token(self) -> str:
         """Get a valid company token"""
+        if self.settings.auth_mode == AuthMode.PIT:
+            # PIT tokens are location-scoped; no company token concept
+            return await self.get_valid_token()
         if self.settings.auth_mode == AuthMode.STANDARD:
             if not self._standard_auth:
                 raise Exception("Standard auth service not initialized")
             return await self._standard_auth.get_company_token()
-        else:
-            # In custom mode, return the agency token
-            return await self.get_valid_token()
+        # Custom mode: agency token
+        return await self.get_valid_token()
 
     async def get_valid_token(self) -> str:
         """Get a valid access token, refreshing if necessary"""
+        if self.settings.auth_mode == AuthMode.PIT:
+            if not self.settings.ghl_pit_token:
+                raise ValueError("GHL_PIT_TOKEN is not set. Add it to your .env file.")
+            return self.settings.ghl_pit_token
+
         if self.settings.auth_mode == AuthMode.STANDARD:
             raise Exception(
                 "In standard mode, use get_company_token or get_location_token. "
@@ -532,6 +550,12 @@ class OAuthService:
         self, location_id: str, force_refresh: bool = False
     ) -> str:
         """Get location-specific access token"""
+        # PIT tokens are already location-scoped — return directly, no exchange needed
+        if self.settings.auth_mode == AuthMode.PIT:
+            if not self.settings.ghl_pit_token:
+                raise ValueError("GHL_PIT_TOKEN is not set. Add it to your .env file.")
+            return self.settings.ghl_pit_token
+
         # Use standard auth if available
         if self.settings.auth_mode == AuthMode.STANDARD:
             if not self._standard_auth:
